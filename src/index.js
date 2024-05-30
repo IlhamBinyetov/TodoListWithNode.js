@@ -2,12 +2,16 @@ const express = require('express');
 const { pool } = require("./config");
 const bcrypt = require('bcrypt');
 const flash = require("express-flash");
+const passport = require("passport");
 const session = require("express-session");
 
 require("dotenv").config();
 const app = express();
-console.log('passwordun novu', typeof process.env.PASSWORD);
+
 //const PORT = process.env.PORT || 3000;
+const initializePassport = require("../passportConfig");
+initializePassport(passport);
+
 app.use(express.urlencoded({ extended: false }));
 app.set('view engine', 'ejs');
 app.use(express.static("public"));
@@ -20,21 +24,10 @@ app.use(
     })
   );
 
+  app.use(passport.initialize());
+// Store our variables to be persisted across the whole session. Works with app.use(Session) above
+app.use(passport.session());
 app.use(flash());
-
-function checkAuthenticated(req, res, next) {
-    if (req.isAuthenticated()) {
-      return res.redirect("/dashboard");
-    }
-    next();
-}
-
-function checkNotAuthenticated(req, res, next) {
-    if (req.isAuthenticated()) {
-      return next();
-    }
-    res.redirect("/login");
-}
 
 
 //routers
@@ -53,8 +46,10 @@ app.get("/dashboard", checkNotAuthenticated, (req, res) => {
     console.log(req.isAuthenticated());
     res.render("dashboard", { user: req.user.name });
 });
-app.get("/logout", (req, res) => {
-    req.logout();
+app.get("/logout", (req, res, next) => {
+    req.logout((err) =>{
+      return next(err);
+    });
     res.render("login", { message: "You have logged out successfully" });
 });
 
@@ -73,39 +68,38 @@ app.post("/signup", async (req, res) => {
     if (password.length < 6) {
       errors.push({ message: "Password must be a least 6 characters long" });
     }
-    console.log('errrorrssss ', errors);
-  
     if (errors.length > 0) {
       res.render("signup", { errors, name, email, password, surname });
     } else {
-      hashedPassword = await bcrypt.hash(req.body.password, 10);
-      console.log(hashedPassword);
+      var hashedPassword = await bcrypt.hash(req.body.password, 10);
+     
       // Validation passed
       pool.query(
-        `SELECT * FROM ApplicationUsers
+        `SELECT * FROM "ApplicationUsers"
           WHERE email = $1`,
         [req.body.email],
         (err, results) => {
           if (err) {
-            console.log(err);
+            throw err;
           }
           
   
           if (results && results.rows.length > 0) {
-            return res.render("signup", {
-              message: "Email already registered"
-            });
+            errors.push({message: "Email already registered"})
+            return res.render("signup", errors);
           } else {
             pool.query(
-              `INSERT INTO ApplicationUsers (name,surname, email, password)
+              `INSERT INTO "ApplicationUsers" (name,surname, email, password)
                   VALUES ($1, $2, $3, $4)
                   RETURNING id, password`,
               [name,surname, email, hashedPassword],
+              
               (err, results) => {
+                
                 if (err) {
                   throw err;
                 }
-                console.log(results.rows);
+                
                 req.flash("success_msg", "You are now registered. Please log in");
                 res.redirect("/login");
               }
@@ -115,6 +109,31 @@ app.post("/signup", async (req, res) => {
       );
     }
   });
+
+  app.post(
+    "/login",
+    passport.authenticate("local", {
+      successRedirect: "/dashboard",
+      failureRedirect: "/login",
+      failureFlash: true
+    })
+  );
+
+
+
+  function checkAuthenticated(req, res, next) {
+    if (req.isAuthenticated()) {
+      return res.redirect("/dashboard");
+    }
+    next();
+}
+
+function checkNotAuthenticated(req, res, next) {
+    if (req.isAuthenticated()) {
+      return next();
+    }
+    res.redirect("/login");
+}
 
 
 const PORT = 6003;
