@@ -1,3 +1,4 @@
+//importing libraries that we installed using npm
 const express = require('express');
 const { pool } = require("./config");
 const bcrypt = require('bcrypt');
@@ -34,7 +35,7 @@ app.use(flash());
 app.get("/",(req,res)=>{
     res.render("login.ejs");
 });
-app.get("/signup",(req,res)=>{
+app.get("/signup", checkAuthenticated,(req,res)=>{
     res.render("signup.ejs");
 });
 
@@ -42,9 +43,9 @@ app.get("/login", checkAuthenticated, (req, res) => {
     res.render("login.ejs");
 });
 
-app.get("/dashboard", checkNotAuthenticated, (req, res) => {
-    console.log(req.isAuthenticated());
-    res.render("dashboard", { user: req.user.name });
+app.get("/home", checkNotAuthenticated, (req, res) => {
+    //console.log(req.isAuthenticated());
+    res.render("home", { user: req.user.name });
 });
 app.get("/logout", (req, res, next) => {
     req.logout((err) =>{
@@ -54,13 +55,10 @@ app.get("/logout", (req, res, next) => {
 });
 
 app.post("/signup", async (req, res) => {
+  
     let { name, email, password, surname } = req.body;
-    console.log(name, email,password,surname);
-  
+    
     let errors = [];
-  
-    console.log({name,email,password,surname});
-  
     if (!name || !email || !password || !surname) {
       errors.push({ message: "Please enter all fields" });
     }
@@ -70,60 +68,51 @@ app.post("/signup", async (req, res) => {
     }
     if (errors.length > 0) {
       res.render("signup", { errors, name, email, password, surname });
-    } else {
-      var hashedPassword = await bcrypt.hash(req.body.password, 10);
-     
-      // Validation passed
-      pool.query(
-        `SELECT * FROM "ApplicationUsers"
-          WHERE email = $1`,
-        [req.body.email],
-        (err, results) => {
-          if (err) {
-            throw err;
-          }
-          
-  
-          if (results && results.rows.length > 0) {
-            errors.push({message: "Email already registered"})
-            return res.render("signup", errors);
-          } else {
-            pool.query(
-              `INSERT INTO "ApplicationUsers" (name,surname, email, password)
-                  VALUES ($1, $2, $3, $4)
-                  RETURNING id, password`,
-              [name,surname, email, hashedPassword],
-              
-              (err, results) => {
-                
-                if (err) {
-                  throw err;
-                }
-                
-                req.flash("success_msg", "You are now registered. Please log in");
-                res.redirect("/login");
-              }
-            );
-          }
-        }
-      );
+    } 
+    
+    try {
+      const hashedPassword = await bcrypt.hash(password, 10);
+      const userQuery = await pool.query(
+        `SELECT * FROM "ApplicationUsers" WHERE email = $1`,
+        [email]
+    );
+    if (userQuery.rows.length > 0) {
+      errors.push({ message: "Email already registered" });
+      return res.render("signup", { errors, name, email, password, surname });
+    }  
+
+    const insertQuery = await pool.query(
+      `INSERT INTO "ApplicationUsers" (name, surname, email, password) VALUES ($1, $2, $3, $4) RETURNING id, password`,
+      [name, surname, email, hashedPassword]
+    );
+
+    req.flash("success_msg", "You are now registered. Please log in");
+    res.redirect("/login");
+
+    } catch (error) {
+        console.error(err);
+        errors.push({ message: "Something went wrong. Please try again." });
+        res.render("signup", { errors, name, email, password, surname });
     }
-  });
+    
+
+});
 
   app.post(
     "/login",
     passport.authenticate("local", {
-      successRedirect: "/dashboard",
+      successRedirect: "/home",
       failureRedirect: "/login",
       failureFlash: true
     })
   );
 
+  //routers end
 
 
   function checkAuthenticated(req, res, next) {
     if (req.isAuthenticated()) {
-      return res.redirect("/dashboard");
+      return res.redirect("/home");
     }
     next();
 }
