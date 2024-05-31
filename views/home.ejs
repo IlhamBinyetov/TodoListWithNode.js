@@ -21,7 +21,10 @@
                         <% todos.forEach(todo => { %>
                             <li class="list-group-item d-flex justify-content-between align-items-center">
                                 <%= todo.name %>
-                                <a href="/delete/todo/<%= todo.id %>" class="btn btn-danger btn-sm">Delete</a>
+                                <div>
+                                    <a href="/delete/todo/<%= todo.id %>" class="btn btn-danger btn-sm">Delete</a>
+                                </div>
+                                
                             </li>
                         <% }) %>
                     <% } else { %>

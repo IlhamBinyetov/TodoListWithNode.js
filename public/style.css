@@ -43,3 +43,7 @@
     background-color: hsla(0, 3%, 7%, 0.9) !important;
     backdrop-filter: saturate(200%) blur(25px);
   }
+
+  a{
+    text-decoration: none !important;
+  }
