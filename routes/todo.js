@@ -6,6 +6,11 @@ const { pool } = require("../src/config");
 router.post("/add/todo", async (req, res) => {
     console.log(req.body);
     const { todo } = req.body;
+
+    if(todo.length> 100){
+        req.flash("error_msg", "Todo item must not exceed 100 characters.");
+        return res.redirect("/home");
+    }
     console.log("todoList" + req.body);
     try {
         const insertQuery = await pool.query(

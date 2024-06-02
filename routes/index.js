@@ -47,6 +47,10 @@ router.post("/signup", async (req, res) => {
         errors.push({ message: "Please enter all fields" });
     }
 
+    if (name.length > 50 || surname.length > 50 || email.length > 100 || password.length > 100) {
+        errors.push({ message: "Input fields must not exceed 100 characters." });
+    }
+
     if (password.length < 6) {
         errors.push({ message: "Password must be at least 6 characters long" });
     }
